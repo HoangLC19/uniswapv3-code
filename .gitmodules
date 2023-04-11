@@ -8,4 +8,4 @@
 [submodule "lib/prb-math"]
 	path = lib/prb-math
 	url = https://github.com/PaulRBerg/prb-math
-	branch = v3
+	branch = v3.3.2
