@@ -1,6 +1,9 @@
 // SPDX-License-Identfier: MIT
 pragma solidity ^0.8.14;
 
+import "./FixedPoint96.sol";
+import "prb-math/PRBMath.sol";
+
 library Math {
     function calcAmount0Delta(
         uint160 sqrtPriceAX96,
@@ -32,9 +35,12 @@ library Math {
 
         require(sqrtPriceAX96 > 0);
 
-        amount1 = mulDivRoundingUp(liquidity, (sqrtPriceBX96 - sqrtPriceAX96), FixedPoint06.Q96);
+        amount1 = mulDivRoundingUp(
+            liquidity,
+            (sqrtPriceBX96 - sqrtPriceAX96),
+            FixedPoint06.Q96
+        );
     }
-
 
     function mulDivRoundingUp(
         uint256 a,
