@@ -1,6 +1,9 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
+import "./interfaces/IUniswapV3MintCallback.sol";
+import "./interfaces/IERC20.sol";
+import "./interfaces/IUniswapV3SwapCallback.sol";
 import "./lib/Tick.sol";
 import "./lib/Position.sol";
 
@@ -23,6 +26,14 @@ contract UniswapV3Pool {
         // Current tick
         int24 tick;
     }
+
+    struct CallbackData {
+        address token0;
+        address token1;
+        address payer;
+    }
+
+
 
     Slot0 public slot0;
 
@@ -48,6 +59,16 @@ contract UniswapV3Pool {
         uint256 amount1
     );
 
+    event Swap(
+        address indexed sender,
+        address indexed recipient,
+        uint256 amount0,
+        uint256 amount1,
+        uint256 sqrtPriceX96,
+        uint128 liquidity,
+        int24 tick
+    );
+
     constructor(
         address token0_,
         address token1_,
@@ -65,7 +86,8 @@ contract UniswapV3Pool {
         address owner,
         int24 lowerTick,
         int24 upperTick,
-        uint128 amount
+        uint128 amount,
+        bytes calldata data
     ) external returns (uint256 amount0, uint256 amount1) {
         if (
             lowerTick < MIN_TICK ||
@@ -99,7 +121,8 @@ contract UniswapV3Pool {
 
         IUniswapV3MintCallback(msg.sender).uniswapV3MintCallback(
             amount0,
-            amount1
+            amount1,
+            data
         );
         if (amount0 > 0 && balance0Before + amount0 > _balance0())
             revert InsufficientInputAmount();
@@ -118,13 +141,46 @@ contract UniswapV3Pool {
         );
     }
 
+    function swap(
+        address recipient,
+        bytes calldata data
+    ) public returns (int256 amount0, int256 amount1) {
+        int24 nextTick = 85184;
+        uint160 nextPrice = 5604469350942327889444743441197;
+
+        amount0 = -0.008396714242162444 ether;
+        amount1 = 42 ether;
+
+        (slot0.sqrtPriceX96, slot0.tick) = (nextPrice, nextTick);
+        IERC20(token0).transfer(recipient, uint256(-amount0));
+
+        uint256 balance1Before = _balance1();
+        IUniswapV3SwapCallback(msg.sender).uniswapV3SwapCallback(
+            amount0,
+            amount1,
+            data
+        );
+        if (balance1Before + uint256(amount1) < _balance1())
+            revert InsufficientInputAmount();
+
+        emit Swap(
+            msg.sender,
+            recipient,
+            uint256(amount0),
+            uint256(amount1),
+            nextPrice,
+            liquidity,
+            nextTick
+        );
+    }
+
     // get balance of token0
-    function _balance0() internal view returns (uint256 balance) {
-        balance = IERC20(token0).balance0f(address(this));
+    function _balance0() internal returns (uint256 balance) {
+        balance = IERC20(token0).balanceOf(address(this));
     }
 
     // get balance of token1
-    function _balance1() internal view returns (uint256 balance) {
+    function _balance1() internal returns (uint256 balance) {
         balance = IERC20(token1).balanceOf(address(this));
     }
 }
