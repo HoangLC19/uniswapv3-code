@@ -6,11 +6,14 @@ import "./interfaces/IERC20.sol";
 import "./interfaces/IUniswapV3SwapCallback.sol";
 import "./lib/Tick.sol";
 import "./lib/Position.sol";
+import "./lib/TickBitmap.sol";
+import "./lib/Math.sol";
 
 contract UniswapV3Pool {
     using Tick for mapping(int24 => Tick.Info);
     using Position for mapping(bytes32 => Position.Info);
     using Position for Position.Info;
+    using TickBitmap for mapping(int16 => uint256);
 
     int24 internal constant MIN_TICK = -887272;
     int24 internal constant MAX_TICK = -MIN_TICK;
@@ -33,8 +36,6 @@ contract UniswapV3Pool {
         address payer;
     }
 
-
-
     Slot0 public slot0;
 
     // Amount of liquidity, l
@@ -44,6 +45,8 @@ contract UniswapV3Pool {
     mapping(int24 => Tick.Info) public ticks;
     // Positions info
     mapping(bytes32 => Position.Info) public positions;
+    // tick index
+    mapping(int16 => uint256) public tickBitmap;
 
     error InvalidTickRange();
     error ZeroLiquidity();
@@ -97,8 +100,15 @@ contract UniswapV3Pool {
 
         if (amount == 0) revert ZeroLiquidity();
 
-        ticks.update(lowerTick, amount);
-        ticks.update(upperTick, amount);
+        // ticks.update(lowerTick, amount);
+        // ticks.update(upperTick, amount);
+
+        bool flippedLower = ticks.update(lowerTick, amount);
+        bool flippedUpper = ticks.update(upperTick, amount);
+
+        if (flippedLower) tickBitmap.flipTick(lowerTick, true);
+
+        if (flippedUpper) tickBitmap.flipTick(upperTick, true);
 
         Position.Info storage position = positions.get(
             owner,
@@ -108,13 +118,24 @@ contract UniswapV3Pool {
 
         position.update(amount);
 
-        amount0 = 0.998976618347425280 ether;
-        amount1 = 5000 ether;
-
         liquidity += uint128(amount);
 
         uint256 balance0Before;
         uint256 balance1Before;
+
+        Slot0 memory slot0_ = slot0;
+
+        amount0 = Math.calcAmount1Delta(
+            slot0_.sqrtPriceX96,
+            TickMath.getSqrtRatioAtTick(upperTick),
+            amount
+        );
+
+        amount1 = Math.calcAmount1Delta(
+            slot0_.sqrtPriceX96,
+            TickMath.getSqrtRatioAtTick(lowerTick),
+            amount
+        );
 
         if (amount0 > 0) balance0Before = _balance0();
         if (amount1 > 0) balance1Before = _balance1();
