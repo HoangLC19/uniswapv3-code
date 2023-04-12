@@ -2,6 +2,7 @@
 pragma solidity ^0.8.14;
 
 import "./interfaces/IUniswapV3Pool.sol";
+import "forge-std/console.sol";
 
 contract UniswapV3Quoter {
     struct QuoteParams {
@@ -21,7 +22,7 @@ contract UniswapV3Quoter {
                 address(this),
                 params.zeroForOne,
                 params.amountIn,
-                new bytes(0)
+                abi.encode(params.pool)
             )
         {} catch (bytes memory reason) {
             return abi.decode(reason, (uint256, uint160, int24));
@@ -37,7 +38,7 @@ contract UniswapV3Quoter {
 
         uint256 amountOut = amount0Delta > 0
             ? uint256(-amount1Delta)
-            : uint256(amount0Delta);
+            : uint256(-amount0Delta);
 
         (uint160 sqrtPriceX96After, int24 tickAfter) = IUniswapV3Pool(pool)
             .slot0();
